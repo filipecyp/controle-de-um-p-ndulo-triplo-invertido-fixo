@@ -530,10 +530,10 @@ total_input1 = [ref_input, dist_input1];
 % Simula a resposta
 [y_ref, t_ref, x_full_ref] = lsim(sys_final, total_input1, t_sim1);
 
-% Calcula os torques: u = Nbar*r - K*x_hat
-x_hat_ref = x_full_ref(:, 7:12);
-u_ref = (Nbar*ref_rad)' - (K_ctrl * x_hat_ref')'; % Transposições para broadcast
-u_ref = repmat((Nbar*ref_rad)', size(t_ref,1), 1) - x_hat_ref * K_ctrl';
+% Calcula os torques: u = Nbar*r - K*z
+z_ref = x_full_ref(:, 7:12);
+u_ref = (Nbar*ref_rad)' - (K_ctrl * z_ref')'; % Transposições para broadcast
+u_ref = repmat((Nbar*ref_rad)', size(t_ref,1), 1) - z_ref * K_ctrl';
 
 % Plot da resposta dos ângulos
 figure('Name', 'Cenário 1: Rastreamento de Referência - Ângulos');
@@ -562,15 +562,15 @@ t_sim2 = 0:0.01:5;
 % Entrada: referência nula, perturbação em pulso
 ref_input2 = zeros(length(t_sim2), 3);
 dist_input2 = zeros(length(t_sim2), 1);
-dist_input2(t_sim2 >= 1 & t_sim2 <= 1.1) = 10; % Amplitude da perturbação
+dist_input2(t_sim2 >= 1 & t_sim2 <= 1.1) = 2; % Amplitude da perturbação
 total_input2 = [ref_input2, dist_input2];
 
 % Simula a resposta
 [y_dist, t_dist, x_full_dist] = lsim(sys_final, total_input2, t_sim2);
 
 % Calcula os torques: u = -K*x_hat (pois r=0)
-x_hat_dist = x_full_dist(:, 7:12);
-u_dist = -x_hat_dist * K_ctrl';
+z_dist = x_full_dist(:, 7:12);
+u_dist = -z_dist * K_ctrl';
 
 % Plot da resposta dos ângulos
 figure('Name', 'Cenário 2: Rejeição a Perturbações - Ângulos');
