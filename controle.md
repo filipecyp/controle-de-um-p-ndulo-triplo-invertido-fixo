@@ -489,10 +489,10 @@ sgtitle('Desempenho do Sistema: Regulador Kaloc com Observador vs. Feedback de E
 K_ctrl = Kaloc;
 
 % Cálculo do ganho estático da malha fechada
-G_dc = C * inv(-(A - B * K_ctrl)) * B;
+K_rp = C * inv(-(A - B * K_ctrl)) * B;
 
 % Cálculo do ganho de pré-alimentação usando a pseudo-inversa
-Nbar = pinv(G_dc);
+Nbar = pinv(K_rp);
 
 fprintf('\nMatriz de Ganho de Pré-alimentação (Nbar):\n');
 disp(Nbar);
