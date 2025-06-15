@@ -483,3 +483,108 @@ plot(t_sim, x_plant_sim(:,3), 'b-', t_orig_sim, yaloc_orig(:,3), 'r-');
 title('theta3');
 ylabel('theta3'); xlabel('Tempo (s)'); grid on;
 sgtitle('Desempenho do Sistema: Regulador Kaloc com Observador vs. Feedback de Estado Real');
+%%
+%%5.1 Sintese de pre alimentacao
+% Regulador escolhido: Kaloc
+K_ctrl = Kaloc;
+
+% Cálculo do ganho estático da malha fechada
+G_dc = C * inv(-(A - B * K_ctrl)) * B;
+
+% Cálculo do ganho de pré-alimentação usando a pseudo-inversa
+Nbar = pinv(G_dc);
+
+fprintf('\nMatriz de Ganho de Pré-alimentação (Nbar):\n');
+disp(Nbar);
+
+%% 5.2 Simulações em malha fechada
+
+% --- Modelo de Espaço de Estados Completo ---
+% Inclui controlador, observador e pré-alimentador
+% Estados aumentados: z = [x; x_hat] (12 estados)
+A_full = [A, -B * K_ctrl;
+          L_obs * C, A - L_obs * C - B * K_ctrl];
+
+B_full_ref = [B * Nbar; B * Nbar]; % Entrada de referência
+B_full_dist = [E; E]; % Entrada de perturbação
+
+% O sistema completo tem duas entradas: referência r e perturbação W
+B_combined = [B_full_ref, B_full_dist];
+D_combined = zeros(size(C,1), size(B_combined,2));
+
+sys_final = ss(A_full, B_combined, [C, zeros(size(C))], D_combined);
+
+%% --- Cenário 1: Rastreamento de Sinais de Referência ---
+fprintf('\nExecutando Simulação de Rastreamento de Referência...\n');
+t_sim1 = 0:0.01:5;
+ref_deg = [2; -6; 0];
+ref_rad = deg2rad(ref_deg);
+
+% Entrada: referência degrau, perturbação nula
+ref_input = [ones(size(t_sim1,2),1) * ref_rad(1), ...
+             ones(size(t_sim1,2),1) * ref_rad(2), ...
+             ones(size(t_sim1,2),1) * ref_rad(3)];
+dist_input1 = zeros(size(t_sim1,2), 1);
+total_input1 = [ref_input, dist_input1];
+
+% Simula a resposta
+[y_ref, t_ref, x_full_ref] = lsim(sys_final, total_input1, t_sim1);
+
+% Calcula os torques: u = Nbar*r - K*x_hat
+x_hat_ref = x_full_ref(:, 7:12);
+u_ref = (Nbar*ref_rad)' - (K_ctrl * x_hat_ref')'; % Transposições para broadcast
+u_ref = repmat((Nbar*ref_rad)', size(t_ref,1), 1) - x_hat_ref * K_ctrl';
+
+% Plot da resposta dos ângulos
+figure('Name', 'Cenário 1: Rastreamento de Referência - Ângulos');
+plot(t_ref, rad2deg(y_ref(:,1)), 'r-', 'LineWidth', 2); hold on;
+plot(t_ref, rad2deg(y_ref(:,2)), 'g-', 'LineWidth', 2);
+plot(t_ref, rad2deg(y_ref(:,3)), 'b-', 'LineWidth', 2);
+plot(t_ref, ref_deg(1) * ones(size(t_ref)), 'r--', 'LineWidth', 1.5);
+plot(t_ref, ref_deg(2) * ones(size(t_ref)), 'g--', 'LineWidth', 1.5);
+plot(t_ref, ref_deg(3) * ones(size(t_ref)), 'b--', 'LineWidth', 1.5);
+grid on; title('Desempenho em Rastreamento de Referência');
+xlabel('Tempo (s)'); ylabel('Ângulo (graus)');
+legend('\theta_1', '\theta_2', '\theta_3', 'Ref \theta_1', 'Ref \theta_2', 'Ref \theta_3', 'Location', 'southeast');
+
+% Plot da resposta dos torques
+figure('Name', 'Cenário 1: Rastreamento de Referência - Torques');
+plot(t_ref, u_ref(:,1), 'r-', 'LineWidth', 2); hold on;
+plot(t_ref, u_ref(:,2), 'b-', 'LineWidth', 2);
+grid on; title('Forças de Controle (Torques) para Rastreamento');
+xlabel('Tempo (s)'); ylabel('Torque (N·m)');
+legend('Torque T_1', 'Torque T_2');
+
+%% --- Cenário 2: Rejeição a Perturbações ---
+fprintf('\nExecutando Simulação de Rejeição a Perturbações...\n');
+t_sim2 = 0:0.01:5;
+
+% Entrada: referência nula, perturbação em pulso
+ref_input2 = zeros(length(t_sim2), 3);
+dist_input2 = zeros(length(t_sim2), 1);
+dist_input2(t_sim2 >= 1 & t_sim2 <= 1.1) = 10; % Amplitude da perturbação
+total_input2 = [ref_input2, dist_input2];
+
+% Simula a resposta
+[y_dist, t_dist, x_full_dist] = lsim(sys_final, total_input2, t_sim2);
+
+% Calcula os torques: u = -K*x_hat (pois r=0)
+x_hat_dist = x_full_dist(:, 7:12);
+u_dist = -x_hat_dist * K_ctrl';
+
+% Plot da resposta dos ângulos
+figure('Name', 'Cenário 2: Rejeição a Perturbações - Ângulos');
+plot(t_dist, rad2deg(y_dist(:,1)), 'r-', 'LineWidth', 2); hold on;
+plot(t_dist, rad2deg(y_dist(:,2)), 'g-', 'LineWidth', 2);
+plot(t_dist, rad2deg(y_dist(:,3)), 'b-', 'LineWidth', 2);
+grid on; title('Desempenho em Rejeição a Perturbações');
+xlabel('Tempo (s)'); ylabel('Ângulo (graus)');
+legend('\theta_1', '\theta_2', '\theta_3');
+
+% Plot da resposta dos torques
+figure('Name', 'Cenário 2: Rejeição a Perturbações - Torques');
+plot(t_dist, u_dist(:,1), 'r-', 'LineWidth', 2); hold on;
+plot(t_dist, u_dist(:,2), 'b-', 'LineWidth', 2);
+grid on; title('Forças de Controle (Torques) para Rejeição de Perturbação');
+xlabel('Tempo (s)'); ylabel('Torque (N·m)');
+legend('Torque T_1', 'Torque T_2');
